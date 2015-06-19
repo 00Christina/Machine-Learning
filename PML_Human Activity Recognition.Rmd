@@ -1,0 +1,78 @@
+# Modeling How Well Weight Lifting Exercise Is Performed with Human Activity Recognition
+While people regularly quantify how much of a particular activity they do, they rarely quantify how well it is performed. The data under consideration is associated with human activity recognition monitored by activity trackers on six male subjects, aged 20-28, located on the forearm, arm, belt, and the dumbbell used to perform the activity known as a biceps curl.
+
+In this project, the goal is to use data from accelerometers located in activity trackers that aim to measure barbell lifts correctly and incorrectly in 5 different ways: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E).
+
+To begin, it's necessary to load the appropriate packages; in this case, the caret and randomForest package may be used:
+```{r}
+library(caret)
+library(randomForest)
+library(RCurl)
+```
+
+## Download Data
+The data sets comprise a Weight Lifting Exercise Dataset available here: http://groupware.les.inf.puc-rio.br/har. For more information, see the sources at the end of this analysis.
+```{r}
+# Download the data and read it
+file <- getURL("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", ssl.verifypeer=0L, followlocation=1L)
+writeLines(file, 'training.csv')
+file <- read.csv("training.csv")
+testfile <- getURL("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", ssl.verifypeer=0L, followlocation=1L)
+writeLines(testfile, 'testing.csv')
+testfile <- read.csv("testing.csv")
+```
+
+## Data Cleaning
+Looking at the data, we can see that there are many columns with NA values or empty cells that need to be removed before analysis. In addition, there are several columns at the beginning of the data set that are irrelevant for the purposes of this analysis, and can also be removed. Removing these from the test set yields 53 variables with recorded observations; similarly, when we remove the columns with empty values in the training set, the column variables match with an equal 53 variables.
+```{r, echo=FALSE}
+training <- file
+training <- training[, colSums(is.na(training))==0]
+training <- training[, -c(12:20, 43:48, 52:60, 74:82)]
+training <- training[, c(8:60)]
+testing <- testfile
+testing <- testing[, colSums(is.na(testing))==0]
+testing <- testing[, c(8:60)]
+```
+
+## Cross Validation
+To start cross validation, we take the training set, and split it into training and test sets. From there, we can build a model on the training set. The variable used for the split is the one which we want to predict of the test set, 'classe'. As we are using a random forest model, as described later, the approach is random sub-sampling with replacement (bootstrapping) which is estimated internally during the run, and gives an "out-of-bag" error estimate.
+```{r}
+# Create training and test sets
+inTrain <- createDataPartition(y = training$classe, p = 0.7, list = F)
+train <- training[inTrain,]
+test <- training[-inTrain,]
+dim(train); dim(test)
+
+# Plot of Quantitative Data by Class
+qplot(classe, data = train, main = "Data by Qualitative Class", xlab = "Qualitative Class", ylab = "Quantity")
+```
+
+### Build Model
+In this case, we've selected the random forest model because of its accuracy, even though it may be subject to over-fitting and difficult to interpret at times. It is also among the top two performing algorithms, along with boosting, in prediction contests. In this model, the type of random forest is classification (as we are basing the movements performed by their class), the number of trees is 500, and the number of variables tried at each split is 7. The variable tested against the rest is 'classe'.
+```{r}
+# Random forest
+modFit <- randomForest(classe ~ ., data = train)
+modFit
+plot(modFit, log="y")
+
+# Predicting new values
+pred <- predict(modFit, test)
+confusionMatrix(pred, test$classe)
+```
+According to the random forest model run here, the out of sample error is expected to be around 0.51%.
+
+### Model Prediction
+Now that the model has been tested on the training set and run on the testing data within that set, its possible to try it now on the separate testing data file (the validation data set), which had twenty observations of the same 53 variables.
+```{r}
+# Predicted Result
+predtest <- predict(modFit, testing)
+predtest
+```
+
+## Conclusion
+Overall, the random forest model appears to be highlight accurate in predicting the type of class of the activity performed (A-E) based on the human activity recognition data. However, it is possible that over-fitting on the training set may be a factor here.
+
+## Sources
+- Practical Machine Learning, Johns Hopkins University, Coursera
+
+- Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013. See more here: http://groupware.les.inf.puc-rio.br/har
