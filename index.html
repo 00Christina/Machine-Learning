@@ -1,0 +1,130 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <title>Machine-learning by 00Christina</title>
+
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/github-light.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <div class="wrapper">
+      <header>
+        <h1>Machine-learning</h1>
+        <p>Modeling HAR-Machine Learning Project</p>
+
+        <p class="view"><a href="https://github.com/00Christina/Machine-Learning">View the Project on GitHub <small>00Christina/Machine-Learning</small></a></p>
+
+
+        <ul>
+          <li><a href="https://github.com/00Christina/Machine-Learning/zipball/master">Download <strong>ZIP File</strong></a></li>
+          <li><a href="https://github.com/00Christina/Machine-Learning/tarball/master">Download <strong>TAR Ball</strong></a></li>
+          <li><a href="https://github.com/00Christina/Machine-Learning">View On <strong>GitHub</strong></a></li>
+        </ul>
+      </header>
+      <section>
+        <h1>
+<a id="modeling-how-well-weight-lifting-exercise-is-performed-with-human-activity-recognition" class="anchor" href="#modeling-how-well-weight-lifting-exercise-is-performed-with-human-activity-recognition" aria-hidden="true"><span class="octicon octicon-link"></span></a>Modeling How Well Weight Lifting Exercise Is Performed with Human Activity Recognition</h1>
+
+<p>While people regularly quantify how much of a particular activity they do, they rarely quantify how well it is performed. The data under consideration is associated with human activity recognition monitored by activity trackers on six male subjects, aged 20-28, located on the forearm, arm, belt, and the dumbbell used to perform the activity known as a biceps curl.</p>
+
+<p>In this project, the goal is to use data from accelerometers located in activity trackers that aim to measure barbell lifts correctly and incorrectly in 5 different ways: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E).</p>
+
+<p>To begin, it's necessary to load the appropriate packages; in this case, the caret and randomForest package may be used:
+    library(caret)
+    library(randomForest)
+    library(RCurl)</p>
+
+<h2>
+<a id="download-data" class="anchor" href="#download-data" aria-hidden="true"><span class="octicon octicon-link"></span></a>Download Data</h2>
+
+<p>The data sets comprise a Weight Lifting Exercise Dataset available here: <a href="http://groupware.les.inf.puc-rio.br/har">http://groupware.les.inf.puc-rio.br/har</a>. For more information, see the sources at the end of this analysis.</p>
+
+<pre><code># Download the data and read it
+file &lt;- getURL("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", ssl.verifypeer=0L, followlocation=1L)
+writeLines(file, 'training.csv')
+file &lt;- read.csv("training.csv")
+testfile &lt;- getURL("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", ssl.verifypeer=0L, followlocation=1L)
+writeLines(testfile, 'testing.csv')
+testfile &lt;- read.csv("testing.csv")
+</code></pre>
+
+<h2>
+<a id="data-cleaning" class="anchor" href="#data-cleaning" aria-hidden="true"><span class="octicon octicon-link"></span></a>Data Cleaning</h2>
+
+<p>Looking at the data, we can see that there are many columns with NA values or empty cells that need to be removed before analysis. In addition, there are several columns at the beginning of the data set that are irrelevant for the purposes of this analysis, and can also be removed. Removing these from the test set yields 53 variables with recorded observations; similarly, when we remove the columns with empty values in the training set, the column variables match with an equal 53 variables.</p>
+
+<pre><code>training &lt;- file
+training &lt;- training[, colSums(is.na(training))==0]
+training &lt;- training[, -c(12:20, 43:48, 52:60, 74:82)]
+training &lt;- training[, c(8:60)]
+testing &lt;- testfile
+testing &lt;- testing[, colSums(is.na(testing))==0]
+testing &lt;- testing[, c(8:60)]
+</code></pre>
+
+<h2>
+<a id="cross-validation" class="anchor" href="#cross-validation" aria-hidden="true"><span class="octicon octicon-link"></span></a>Cross Validation</h2>
+
+<p>To start cross validation, we take the training set, and split it into training and test sets. From there, we can build a model on the training set. The variable used for the split is the one which we want to predict of the test set, 'classe'. As we are using a random forest model, as described later, the approach is random sub-sampling with replacement (bootstrapping) which is estimated internally during the run, and gives an "out-of-bag" error estimate.
+    # Create training and test sets
+    inTrain &lt;- createDataPartition(y = training$classe, p = 0.7, list = F)
+    train &lt;- training[inTrain,]
+    test &lt;- training[-inTrain,]
+    dim(train); dim(test)</p>
+
+<pre><code># Plot of Quantitative Data by Class
+qplot(classe, data = train, main = "Data by Qualitative Class", xlab = "Qualitative Class", ylab = "Quantity")
+</code></pre>
+
+<h3>
+<a id="build-model" class="anchor" href="#build-model" aria-hidden="true"><span class="octicon octicon-link"></span></a>Build Model</h3>
+
+<p>In this case, we've selected the random forest model because of its accuracy, even though it may be subject to over-fitting and difficult to interpret at times. It is also among the top two performing algorithms, along with boosting, in prediction contests. In this model, the type of random forest is classification (as we are basing the movements performed by their class), the number of trees is 500, and the number of variables tried at each split is 7. The variable tested against the rest is 'classe'.
+    # Random forest
+    modFit &lt;- randomForest(classe ~ ., data = train)
+    modFit
+    plot(modFit, log="y")</p>
+
+<pre><code># Predicting new values
+pred &lt;- predict(modFit, test)
+confusionMatrix(pred, test$classe)
+</code></pre>
+
+<p>According to the random forest model run here, the out of sample error is expected to be around 0.51%.</p>
+
+<h3>
+<a id="model-prediction" class="anchor" href="#model-prediction" aria-hidden="true"><span class="octicon octicon-link"></span></a>Model Prediction</h3>
+
+<p>Now that the model has been tested on the training set and run on the testing data within that set, its possible to try it now on the separate testing data file (the validation data set), which had twenty observations of the same 53 variables.
+    # Predicted Result
+    predtest &lt;- predict(modFit, testing)
+    predtest</p>
+
+<h2>
+<a id="conclusion" class="anchor" href="#conclusion" aria-hidden="true"><span class="octicon octicon-link"></span></a>Conclusion</h2>
+
+<p>Overall, the random forest model appears to be highlight accurate in predicting the type of class of the activity performed (A-E) based on the human activity recognition data. However, it is possible that over-fitting on the training set may be a factor here.</p>
+
+<h2>
+<a id="sources" class="anchor" href="#sources" aria-hidden="true"><span class="octicon octicon-link"></span></a>Sources</h2>
+
+<ul>
+<li><p>Practical Machine Learning, Johns Hopkins University, Coursera</p></li>
+<li><p>Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013. See more here: <a href="http://groupware.les.inf.puc-rio.br/har">http://groupware.les.inf.puc-rio.br/har</a></p></li>
+</ul>
+      </section>
+      <footer>
+        <p>This project is maintained by <a href="https://github.com/00Christina">00Christina</a></p>
+        <p><small>Hosted on GitHub Pages &mdash; Theme by <a href="https://github.com/orderedlist">orderedlist</a></small></p>
+      </footer>
+    </div>
+    <script src="javascripts/scale.fix.js"></script>
+    
+  </body>
+</html>
